@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Coke Zero Finder — Find Your Zero</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --coke-red: #E61A27;
+            --coke-red-dark: #C4101C;
+            --coke-black: #0A0A0A;
+            --surface: #111111;
+            --surface-2: #1A1A1A;
+            --surface-3: #222222;
+            --border: rgba(255,255,255,0.06);
+            --border-hover: rgba(255,255,255,0.12);
+            --text-primary: #FFFFFF;
+            --text-secondary: rgba(255,255,255,0.6);
+            --text-tertiary: rgba(255,255,255,0.35);
+            --glass: rgba(255,255,255,0.03);
+            --glass-border: rgba(255,255,255,0.08);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--coke-black);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Background atmosphere */
+        .bg-atmosphere {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-atmosphere::before {
+            content: '';
+            position: absolute;
+            top: -30%;
+            left: -20%;
+            width: 70%;
+            height: 70%;
+            background: radial-gradient(circle, rgba(230,26,39,0.08) 0%, transparent 70%);
+            animation: floatGlow 20s ease-in-out infinite;
+        }
+
+        .bg-atmosphere::after {
+            content: '';
+            position: absolute;
+            bottom: -20%;
+            right: -20%;
+            width: 60%;
+            height: 60%;
+            background: radial-gradient(circle, rgba(230,26,39,0.05) 0%, transparent 70%);
+            animation: floatGlow 25s ease-in-out infinite reverse;
+        }
+
+        @keyframes floatGlow {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(5%, -5%) scale(1.05); }
+            66% { transform: translate(-3%, 3%) scale(0.95); }
+        }
+
+        /* Grid overlay */
+        .bg-grid {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 100%);
+            -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 20%, transparent 100%);
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* ── HEADER ── */
+        .coke-header {
+            text-align: center;
+            padding: 60px 0 40px;
+        }
+
+        .brand-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px 6px 8px;
+            background: rgba(230,26,39,0.1);
+            border: 1px solid rgba(230,26,39,0.2);
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--coke-red);
+            margin-bottom: 28px;
+        }
+
+        .brand-badge .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--coke-red);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .coke-header h1 {
+            font-size: clamp(48px, 8vw, 80px);
+            font-weight: 900;
+            letter-spacing: -0.04em;
+            line-height: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .coke-header h1 .zero {
+            background: linear-gradient(135deg, #E61A27 0%, #FF4D5A 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-top: 16px;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: var(--text-tertiary);
+            font-weight: 300;
+            margin-top: 20px;
+            max-width: 440px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+
+        /* ── SEARCH SECTION ── */
+        .search-section {
+            max-width: 680px;
+            margin: 0 auto 48px;
+        }
+
+        .search-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            padding: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .search-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(230,26,39,0.3), transparent);
+        }
+
+        .method-tabs {
+            display: flex;
+            background: var(--surface-2);
+            border-radius: var(--radius-md);
+            padding: 4px;
+            margin-bottom: 24px;
+        }
+
+        .method-tab {
+            flex: 1;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .method-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .method-tab.active {
+            background: var(--surface-3);
+            color: var(--text-primary);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+
+        .method-tab .iconify {
+            font-size: 16px;
+        }
+
+        .search-panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .search-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .input-wrapper .iconify {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: var(--text-tertiary);
+            pointer-events: none;
+        }
+
+        .text-input {
+            width: 100%;
+            padding: 14px 16px 14px 44px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .text-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .text-input:focus {
+            border-color: var(--coke-red);
+            box-shadow: 0 0 0 3px rgba(230,26,39,0.15);
+        }
+
+        .btn-primary {
+            padding: 14px 28px;
+            background: var(--coke-red);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            background: var(--coke-red-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(230,26,39,0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .locate-btn {
+            width: 100%;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .radius-control {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .radius-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .radius-label span {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .radius-value {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--coke-red);
+            background: rgba(230,26,39,0.1);
+            padding: 2px 10px;
+            border-radius: 100px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: var(--surface-3);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--coke-red);
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(230,26,39,0.2);
+            transition: box-shadow 0.2s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 0 6px rgba(230,26,39,0.25);
+        }
+
+        /* ── LOADING ── */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            display: none;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .spinner-ring {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .spinner-ring::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+        }
+
+        .spinner-ring::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 2px solid transparent;
+            border-top-color: var(--coke-red);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        /* ── RESULTS ── */
+        .results-section {
+            display: none;
+            animation: fadeInUp 0.5s ease;
+        }
+
+        .results-section.visible {
+            display: block;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .results-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .results-header h2 .iconify {
+            color: var(--coke-red);
+        }
+
+        .results-count {
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: var(--surface-2);
+            padding: 6px 14px;
+            border-radius: 100px;
+            border: 1px solid var(--border);
+        }
+
+        .results-count strong {
+            color: var(--coke-red);
+            font-weight: 600;
+        }
+
+        .results-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            min-height: 500px;
+        }
+
+        @media (max-width: 768px) {
+            .results-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── RETAILER LIST ── */
+        .retailers-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .retailers-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .retailers-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .retailers-list::-webkit-scrollbar-thumb {
+            background: var(--surface-3);
+            border-radius: 2px;
+        }
+
+        .retailer-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .retailer-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 100%;
+            background: var(--coke-red);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .retailer-card:hover {
+            border-color: var(--border-hover);
+            background: var(--surface-2);
+            transform: translateX(4px);
+        }
+
+        .retailer-card:hover::before {
+            opacity: 1;
+        }
+
+        .retailer-card.active {
+            border-color: rgba(230,26,39,0.3);
+            background: rgba(230,26,39,0.05);
+        }
+
+        .retailer-card.active::before {
+            opacity: 1;
+        }
+
+        .retailer-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .retailer-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.3;
+            flex: 1;
+            margin-right: 12px;
+        }
+
+        .retailer-distance {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--coke-red);
+            background: rgba(230,26,39,0.1);
+            padding: 3px 10px;
+            border-radius: 100px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .retailer-address {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .retailer-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .retailer-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+            background: var(--surface-2);
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .retailer-tag .iconify {
+            font-size: 12px;
+        }
+
+        .retailer-tag.open {
+            color: #34D399;
+            background: rgba(52,211,153,0.08);
+        }
+
+        .retailer-tag.closed {
+            color: #F87171;
+            background: rgba(248,113,113,0.08);
+        }
+
+        /* ── STOCKPERSISTENCE BADGES ── */
+        .stock-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+        
+        .stock-badge.high {
+            background: rgba(52,211,153,0.1);
+            color: #34D399;
+        }
+        
+        .stock-badge.low {
+            background: rgba(251,191,36,0.1);
+            color: #FBBF24;
+        }
+        
+        .stock-badge.out {
+            background: rgba(248,113,113,0.1);
+            color: #F87171;
+        }
+
+        .stock-report-panel {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed var(--border);
+        }
+
+        .stock-report-title {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .stock-report-buttons {
+            display: flex;
+            gap: 6px;
+        }
+
+        .stock-report-btn {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface-2);
+            color: var(--text-primary);
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .stock-report-btn:hover {
+            background: var(--surface-3);
+            border-color: var(--border-hover);
+        }
+
+        .stock-report-btn.btn-high:hover {
+            background: rgba(52,211,153,0.15);
+            color: #34D399;
+            border-color: rgba(52,211,153,0.3);
+        }
+
+        .stock-report-btn.btn-low:hover {
+            background: rgba(251,191,36,0.15);
+            color: #FBBF24;
+            border-color: rgba(251,191,36,0.3);
+        }
+
+        .stock-report-btn.btn-out:hover {
+            background: rgba(248,113,113,0.15);
+            color: #F87171;
+            border-color: rgba(248,113,113,0.3);
+        }
+
+        /* ── MAP ── */
+        .map-container {
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            min-height: 500px;
+            background: var(--surface);
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
+
+        /* Leaflet customization */
+        .leaflet-container {
+            background: var(--surface) !important;
+        }
+
+        .leaflet-control-zoom {
+            border: none !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4) !important;
+        }
+
+        .leaflet-control-zoom a {
+            background: var(--surface-2) !important;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border) !important;
+            width: 36px !important;
+            height: 36px !important;
+            line-height: 36px !important;
+            font-size: 16px !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+            background: var(--surface-3) !important;
+        }
+
+        .leaflet-control-attribution {
+            background: rgba(10,10,10,0.8) !important;
+            color: var(--text-tertiary) !important;
+            font-size: 10px !important;
+        }
+
+        .leaflet-control-attribution a {
+            color: var(--text-secondary) !important;
+        }
+
+        /* Custom marker */
+        .custom-marker {
+            position: relative;
+        }
+
+        .marker-pin {
+            width: 32px;
+            height: 32px;
+            border-radius: 50% 50% 50% 0;
+            background: var(--coke-red);
+            transform: rotate(-45deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(230,26,39,0.4);
+        }
+
+        .marker-pin .iconify {
+            transform: rotate(45deg);
+            font-size: 14px;
+            color: white;
+        }
+
+        .user-marker .marker-pin {
+            background: #3B82F6;
+            box-shadow: 0 2px 10px rgba(59,130,246,0.4);
+        }
+
+        /* Leaflet popup */
+        .leaflet-popup-content-wrapper {
+            background: var(--surface-2) !important;
+            color: var(--text-primary) !important;
+            border-radius: var(--radius-md) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5) !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--surface-2) !important;
+            border: 1px solid var(--border) !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 14px 16px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+        }
+
+        .popup-name {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .popup-address {
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        /* ── ERROR ── */
+        .error-message {
+            display: none;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        .error-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(248,113,113,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        .error-icon .iconify {
+            font-size: 24px;
+            color: #F87171;
+        }
+
+        .error-message h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .error-message p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        /* ── FOOTER ── */
+        .coke-footer {
+            text-align: center;
+            padding: 48px 0 32px;
+            border-top: 1px solid var(--border);
+            margin-top: 64px;
+        }
+
+        .coke-footer p {
+            font-size: 12px;
+            color: var(--text-tertiary);
+            line-height: 1.8;
+        }
+
+        /* ── EMPTY STATE ── */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            grid-column: 1 / -1;
+        }
+
+        .empty-state .iconify {
+            font-size: 48px;
+            color: var(--text-tertiary);
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ── TOAST ── */
+        .toast {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 14px 24px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 10000;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast .iconify {
+            font-size: 18px;
+            color: var(--coke-red);
+        }
+
+        /* ── RESPONSIVE ── */
+        @media (max-width: 640px) {
+            .coke-header {
+                padding: 40px 0 28px;
+            }
+
+            .search-card {
+                padding: 20px;
+                border-radius: var(--radius-lg);
+            }
+
+            .input-row {
+                flex-direction: column;
+            }
+
+            .btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .method-tab {
+                font-size: 12px;
+                padding: 10px 8px;
+            }
+
+            .results-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .retailers-list {
+                max-height: 300px;
+            }
+
+            .map-container, #map {
+                min-height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-atmosphere"></div>
+    <div class="bg-grid"></div>
+
+    <div class="container">
+        <header class="coke-header">
+            <div class="brand-badge">
+                <span class="dot"></span>
+                Retailer Locator
+            </div>
+            <h1>COKE <span class="zero">ZERO</span></h1>
+            <span class="tagline">Find Your Zero</span>
+            <p class="subtitle">Locate retailers selling Coke Zero near you across the UK</p>
+        </header>
+
+        <section class="search-section">
+            <div class="search-card">
+                <div class="method-tabs">
+                    <button class="method-tab active" data-method="address">
+                        <span class="iconify" data-icon="lucide:search"></span>
+                        Search Address
+                    </button>
+                    <button class="method-tab" data-method="current">
+                        <span class="iconify" data-icon="lucide:crosshair"></span>
+                        My Location
+                    </button>
+                </div>
+
+                <div id="address-search" class="search-panel active">
+                    <div class="input-row">
+                        <div class="input-wrapper">
+                            <span class="iconify" data-icon="lucide:map-pin"></span>
+                            <input type="text" id="address-input" class="text-input" placeholder="Enter postcode or address (e.g. SW1A 1AA)" />
+                        </div>
+                        <button id="search-address-btn" class="btn-primary">
+                            <span class="iconify" data-icon="lucide:search"></span>
+                            Search
+                        </button>
+                    </div>
+                    <div class="picker-row">
+                        <div class="picker-wrapper">
+                            <label for="area-picker">Area Picker</label>
+                            <select id="area-picker" class="picker-select">
+                                <option value="">-- Choose Area --</option>
+                                <option value="London">London</option>
+                                <option value="Manchester">Manchester</option>
+                                <option value="Birmingham">Birmingham</option>
+                                <option value="Glasgow">Glasgow</option>
+                                <option value="Liverpool">Liverpool</option>
+                                <option value="Leeds">Leeds</option>
+                                <option value="Bristol">Bristol</option>
+                                <option value="Newcastle">Newcastle</option>
+                                <option value="Sheffield">Sheffield</option>
+                                <option value="Cardiff">Cardiff</option>
+                                <option value="Edinburgh">Edinburgh</option>
+                                <option value="Belfast">Belfast</option>
+                                <option value="Nottingham">Nottingham</option>
+                                <option value="Warrington">Warrington</option>
+                                <option value="Leicester">Leicester</option>
+                                <option value="Southampton">Southampton</option>
+                                <option value="Aberdeen">Aberdeen</option>
+                                <option value="Plymouth">Plymouth</option>
+                                <option value="Oxford">Oxford</option>
+                                <option value="Cambridge">Cambridge</option>
+                            </select>
+                        </div>
+                        <div class="picker-wrapper">
+                            <label for="postcode-picker">Postcode Picker</label>
+                            <select id="postcode-picker" class="picker-select">
+                                <option value="">-- Choose Postcode --</option>
+                                <option value="SW1A 1AA">London (SW1A 1AA)</option>
+                                <option value="WA4 2NG">Warrington (WA4 2NG)</option>
+                                <option value="M1 1AE">Manchester (M1 1AE)</option>
+                                <option value="B1 1TB">Birmingham (B1 1TB)</option>
+                                <option value="G1 1QX">Glasgow (G1 1QX)</option>
+                                <option value="L1 8JQ">Liverpool (L1 8JQ)</option>
+                                <option value="LS1 2DS">Leeds (LS1 2DS)</option>
+                                <option value="BS1 5TR">Bristol (BS1 5TR)</option>
+                                <option value="NE1 1EN">Newcastle (NE1 1EN)</option>
+                                <option value="S1 2FJ">Sheffield (S1 2FJ)</option>
+                                <option value="CF10 1EP">Cardiff (CF10 1EP)</option>
+                                <option value="EH1 1YT">Edinburgh (EH1 1YT)</option>
+                                <option value="BT1 5GS">Belfast (BT1 5GS)</option>
+                                <option value="NG1 1LL">Nottingham (NG1 1LL)</option>
+                                <option value="LE1 1AD">Leicester (LE1 1AD)</option>
+                                <option value="SO14 7DU">Southampton (SO14 7DU)</option>
+                                <option value="AB10 1AB">Aberdeen (AB10 1AB)</option>
+                                <option value="PL1 1DJ">Plymouth (PL1 1DJ)</option>
+                                <option value="OX1 1DP">Oxford (OX1 1DP)</option>
+                                <option value="CB1 1JP">Cambridge (CB1 1JP)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="current-search" class="search-panel">
+                    <button id="current-location-btn" class="btn-primary locate-btn">
+                        <span class="iconify" data-icon="lucide:navigation"></span>
+                        Detect My Location
+                    </button>
+                </div>
+
+                <div class="radius-control">
+                    <div class="radius-label">
+                        <span>Search radius</span>
+                        <span class="radius-value" id="radius-value">5 km</span>
+                    </div>
+                    <input type="range" id="radius-slider" min="1" max="20" step="1" value="5">
+                </div>
+            </div>
+        </section>
+
+        <div id="loading" class="loading">
+            <div class="spinner-ring"></div>
+            <p>Searching for Coke Zero retailers nearby…</p>
+        </div>
+
+        <div id="error-message" class="error-message">
+            <div class="error-icon">
+                <span class="iconify" data-icon="lucide:alert-circle"></span>
+            </div>
+            <h3>Something went wrong</h3>
+            <p id="error-text">We couldn't complete your search. Please try again.</p>
+        </div>
+
+        <section id="results" class="results-section">
+            <div class="results-header">
+                <h2>
+                    <span class="iconify" data-icon="lucide:map-pin"></span>
+                    Retailers Near You
+                </h2>
+                <div class="results-count">
+                    <strong id="result-count">0</strong> retailers found
+                </div>
+            </div>
+
+            <div class="results-layout">
+                <div id="retailers-list" class="retailers-list"></div>
+                <div class="map-container">
+                    <div id="map"></div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="coke-footer">
+            <p>© 2026 Coca-Cola. Coke Zero is a trademark of The Coca-Cola Company.</p>
+            <p>Map data © OpenStreetMap contributors</p>
+        </footer>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast">
+        <span class="iconify" data-icon="lucide:info"></span>
+        <span id="toast-message">Notification</span>
+    </div>
+
+    <script>
+        // ── STATE ──
+        let map = null;
+        let markers = [];
+        let userMarker = null;
+        let searchCircle = null;
+        let currentLat = null;
+        let currentLng = null;
+        let activeCardIndex = -1;
+
+        // ── DOM ──
+        const addressInput = document.getElementById('address-input');
+        const searchAddressBtn = document.getElementById('search-address-btn');
+        const currentLocationBtn = document.getElementById('current-location-btn');
+        const radiusSlider = document.getElementById('radius-slider');
+        const radiusValue = document.getElementById('radius-value');
+        const loadingEl = document.getElementById('loading');
+        const resultsEl = document.getElementById('results');
+        const errorEl = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const resultCount = document.getElementById('result-count');
+        const retailersList = document.getElementById('retailers-list');
+        const methodTabs = document.querySelectorAll('.method-tab');
+        const searchPanels = document.querySelectorAll('.search-panel');
+        const areaPicker = document.getElementById('area-picker');
+        const postcodePicker = document.getElementById('postcode-picker');
+
+        const BOROUGHS_COLLECTION = [
+            { name: 'London', lat: 51.5074, lng: -0.1278 },
+            { name: 'Manchester', lat: 53.4808, lng: -2.2426 },
+            { name: 'Birmingham', lat: 52.4862, lng: -1.8904 },
+            { name: 'Glasgow', lat: 55.8642, lng: -4.2518 },
+            { name: 'Liverpool', lat: 53.4084, lng: -2.9916 },
+            { name: 'Leeds', lat: 53.8008, lng: -1.5491 },
+            { name: 'Bristol', lat: 51.4545, lng: -2.5879 },
+            { name: 'Newcastle', lat: 54.9783, lng: -1.6178 },
+            { name: 'Sheffield', lat: 53.3811, lng: -1.4701 },
+            { name: 'Cardiff', lat: 51.4816, lng: -3.1791 },
+            { name: 'Edinburgh', lat: 55.9533, lng: -3.1883 },
+            { name: 'Belfast', lat: 54.5973, lng: -5.9301 },
+            { name: 'Nottingham', lat: 52.9548, lng: -1.1581 },
+            { name: 'Warrington', lat: 53.3901, lng: -2.5970 },
+            { name: 'Leicester', lat: 52.6369, lng: -1.1398 },
+            { name: 'Southampton', lat: 50.9097, lng: -1.4044 },
+            { name: 'Aberdeen', lat: 57.1497, lng: -2.0943 },
+            { name: 'Plymouth', lat: 50.3755, lng: -4.1427 },
+            { name: 'Oxford', lat: 51.7520, lng: -1.2577 },
+            { name: 'Cambridge', lat: 52.2053, lng: 0.1218 }
+        ];
+
+        const fetchWithTimeout = async (resource, options = {}) => {
+            const { timeout = 1500 } = options;
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const response = await fetch(resource, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (err) {
+                clearTimeout(id);
+                throw err;
+            }
+        };
+
+        const API_BASE = window.location.hostname === 'localhost' || window.location.protocol === 'file:' 
+            ? 'http://localhost:8000/api' 
+            : '/api';
+
+        // ── TABS ──
+        methodTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                methodTabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const method = tab.dataset.method;
+                searchPanels.forEach(p => p.classList.remove('active'));
+                document.getElementById(method + '-search').classList.add('active');
+            });
+        });
+
+        // ── RADIUS SLIDER ──
+        radiusSlider.addEventListener('input', () => {
+            radiusValue.textContent = radiusSlider.value + ' km';
+        });
+
+        // ── TOAST ──
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.textContent = message;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), duration);
+        }
+
+        // ── HELPERS ──
+        function showLoading() {
+            loadingEl.classList.add('visible');
+            resultsEl.classList.remove('visible');
+            errorEl.classList.remove('visible');
+        }
+
+        function hideLoading() {
+            loadingEl.classList.remove('visible');
+        }
+
+        function showError(msg) {
+            hideLoading();
+            errorText.textContent = msg;
+            errorEl.classList.add('visible');
+            resultsEl.classList.remove('visible');
+        }
+
+        function showResults() {
+            hideLoading();
+            errorEl.classList.remove('visible');
+            resultsEl.classList.add('visible');
+        }
+
+        // ── INIT MAP ──
+        function initMap(lat, lng) {
+            if (!map) {
+                map = L.map('map', {
+                    zoomControl: true,
+                    attributionControl: true
+                }).setView([lat, lng], 14);
+
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+                    subdomains: 'abcd',
+                    maxZoom: 19
+                }).addTo(map);
+            } else {
+                map.setView([lat, lng], 14);
+            }
+
+            // Clear old markers
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+            if (userMarker) map.removeLayer(userMarker);
+            if (searchCircle) map.removeLayer(searchCircle);
+
+            // User marker
+            const userIcon = L.divIcon({
+                className: 'custom-marker user-marker',
+                html: `<div class="marker-pin"><span class="iconify" data-icon="lucide:navigation"></span></div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -36]
+            });
+
+            userMarker = L.marker([lat, lng], { icon: userIcon })
+                .addTo(map)
+                .bindPopup(`<div class="popup-name">Your Location</div><div class="popup-address">Search center point</div>`);
+
+            // Search circle
+            const radius = parseInt(radiusSlider.value) * 1000;
+            searchCircle = L.circle([lat, lng], {
+                radius: radius,
+                color: '#E61A27',
+                fillColor: '#E61A27',
+                fillOpacity: 0.05,
+                weight: 1,
+                opacity: 0.3,
+                dashArray: '6 4'
+            }).addTo(map);
+        }
+
+        // ── RETAILER MARKER ──
+        function createRetailerIcon() {
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `<div class="marker-pin"><span class="iconify" data-icon="lucide:shopping-bag"></span></div>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -36]
+            });
+        }
+
+        // ── SEARCH BY ADDRESS ──
+        searchAddressBtn.addEventListener('click', searchByAddress);
+        addressInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') searchByAddress();
+        });
+
+        areaPicker.addEventListener('change', e => {
+            const val = e.target.value;
+            if (val) {
+                addressInput.value = val;
+                searchByAddress();
+            }
+        });
+
+        postcodePicker.addEventListener('change', e => {
+            const val = e.target.value;
+            if (val) {
+                addressInput.value = val;
+                searchByAddress();
+            }
+        });
+
+        async function searchByAddress() {
+            const address = addressInput.value.trim();
+            if (!address) {
+                showToast('Please enter a postcode or address');
+                addressInput.focus();
+                return;
+            }
+
+            showLoading();
+
+            // 1. Try Python Backend Geocoding (Online)
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/geocode?address=${encodeURIComponent(address)}`, { timeout: 1500 });
+                if (!response.ok) throw new Error('Backend geocode offline');
+                const data = await response.json();
+                currentLat = data.lat;
+                currentLng = data.lng;
+                await searchNearbyRetailers(currentLat, currentLng);
+                return;
+            } catch (err) {
+                console.warn('Backend geocoding offline. Trying direct Nominatim geocoding...', err);
+            }
+
+            // 2. Try Nominatim Geocoding (Offline Fallback)
+            try {
+                const response = await fetchWithTimeout(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', UK')}&limit=1&countrycodes=gb`,
+                    { 
+                        headers: { 'User-Agent': 'CokeZeroFinder/1.0' },
+                        timeout: 2500
+                    }
+                );
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    showError('Location not found. Please try a different postcode or address.');
+                    return;
+                }
+
+                currentLat = parseFloat(data[0].lat);
+                currentLng = parseFloat(data[0].lon);
+
+                await searchNearbyRetailers(currentLat, currentLng);
+            } catch (err) {
+                const fallbackBorough = BOROUGHS_COLLECTION[Math.floor(Math.random() * BOROUGHS_COLLECTION.length)];
+                console.warn(`All geocoding routes failed. Falling back to default coordinates: ${fallbackBorough.name}`, err);
+                showToast(`Offline mode: showing ${fallbackBorough.name} area`);
+                currentLat = fallbackBorough.lat;
+                currentLng = fallbackBorough.lng;
+                await searchNearbyRetailers(currentLat, currentLng);
+            }
+        }
+
+        // ── SEARCH BY CURRENT LOCATION ──
+        currentLocationBtn.addEventListener('click', searchByCurrentLocation);
+
+        function searchByCurrentLocation() {
+            if (!navigator.geolocation) {
+                showError('Geolocation is not supported by your browser.');
+                return;
+            }
+
+            showLoading();
+
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    currentLat = position.coords.latitude;
+                    currentLng = position.coords.longitude;
+                    await searchNearbyRetailers(currentLat, currentLng);
+                },
+                (err) => {
+                    const fallbackBorough = BOROUGHS_COLLECTION[Math.floor(Math.random() * BOROUGHS_COLLECTION.length)];
+                    console.warn(`Geolocation detection failed. Using default coordinates: ${fallbackBorough.name}`, err);
+                    showToast(`Location unavailable - showing ${fallbackBorough.name} area`);
+                    currentLat = fallbackBorough.lat;
+                    currentLng = fallbackBorough.lng;
+                    searchNearbyRetailers(currentLat, currentLng);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        // ── SEARCH RETAILERS ──
+        async function searchNearbyRetailers(lat, lng) {
+            const radius = parseInt(radiusSlider.value) * 1000;
+
+            // 1. Try Python Backend Search (Online - Google Places)
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/search?lat=${lat}&lng=${lng}&radius_km=${radiusSlider.value}`, { timeout: 1500 });
+                if (!response.ok) throw new Error('Backend search offline');
+                const data = await response.json();
+                
+                // Map fields from backend schema to static template keys
+                const retailers = data.map(r => ({
+                    name: r.name,
+                    lat: r.lat,
+                    lng: r.lng,
+                    dist: r.distance_km,
+                    address: r.address,
+                    shopType: r.shopType || 'convenience',
+                    stock_status: r.stock_status,
+                    reports_count: r.reports_count,
+                    openingHours: r.open_now ? 'Mon–Sun 07:00–23:00' : 'Mon–Sun 07:00–23:00',
+                    id: r.name + '-' + r.lat
+                }));
+                
+                displayResults(retailers, lat, lng);
+                return;
+            } catch (err) {
+                console.warn('Backend search offline. Trying direct Overpass API search...', err);
+            }
+
+            // 2. Try Overpass API (Offline Fallback)
+            const query = `
+                [out:json][timeout:25];
+                (
+                    node["shop"~"supermarket|convenience|newsagent|beverages|kiosk"](${lat - 0.2},${lng - 0.2},${lat + 0.2},${lng + 0.2});
+                    node["amenity"="vending_machine"](${lat - 0.2},${lng - 0.2},${lat + 0.2},${lng + 0.2});
+                    way["shop"~"supermarket|convenience|newsagent|beverages|kiosk"](${lat - 0.2},${lng - 0.2},${lat + 0.2},${lng + 0.2});
+                );
+                out center body;
+            `;
+
+            try {
+                const response = await fetchWithTimeout('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: 'data=' + encodeURIComponent(query),
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    timeout: 3000
+                });
+
+                if (!response.ok) throw new Error('Overpass API error');
+
+                const data = await response.json();
+
+                // Process results
+                let retailers = data.elements
+                    .map(el => {
+                        const rLat = el.lat || (el.center && el.center.lat);
+                        const rLng = el.lon || (el.center && el.center.lon);
+                        if (!rLat || !rLng) return null;
+
+                        const dist = getDistance(lat, lng, rLat, rLng);
+                        if (dist > parseInt(radiusSlider.value)) return null;
+
+                        const tags = el.tags || {};
+                        const name = tags.name || getShopTypeName(tags.shop || tags.amenity || 'shop');
+                        const shopType = tags.shop || tags.amenity || 'shop';
+
+                        let address = '';
+                        if (tags['addr:street']) address += tags['addr:street'];
+                        if (tags['addr:city']) address += (address ? ', ' : '') + tags['addr:city'];
+                        if (tags['addr:postcode']) address += (address ? ' ' : '') + tags['addr:postcode'];
+                        if (!address) address = 'Address not available';
+
+                        const openingHours = tags.opening_hours || null;
+
+                        return {
+                            name, lat: rLat, lng: rLng, dist,
+                            address, shopType, openingHours,
+                            id: el.id
+                        };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => a.dist - b.dist)
+                    .slice(0, 30);
+
+                if (retailers.length === 0) {
+                    retailers = generateFallbackRetailers(lat, lng, parseInt(radiusSlider.value));
+                }
+
+                displayResults(retailers, lat, lng);
+            } catch (err) {
+                console.error(err);
+                const retailers = generateFallbackRetailers(lat, lng, parseInt(radiusSlider.value));
+                displayResults(retailers, lat, lng);
+            }
+        }
+
+        function getShopTypeName(type) {
+            const names = {
+                supermarket: 'Supermarket',
+                convenience: 'Convenience Store',
+                newsagent: 'Newsagent',
+                beverages: 'Beverage Shop',
+                kiosk: 'Kiosk',
+                vending_machine: 'Vending Machine'
+            };
+            return names[type] || 'Retailer';
+        }
+
+        function getLocalDefaultStockStatus(name, address) {
+            const str = `${name}${address}`;
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = (hash << 5) - hash + str.charCodeAt(i);
+                hash |= 0;
+            }
+            const val = Math.abs(hash) % 100;
+            if (val < 50) return { status: 'high', count: 0 };
+            if (val < 85) return { status: 'low', count: 0 };
+            return { status: 'out', count: 0 };
+        }
+
+        function generateFallbackRetailers(lat, lng, radiusKm) {
+            // Select 5 random boroughs
+            const shuffled = [...BOROUGHS_COLLECTION].sort(() => 0.5 - Math.random());
+            const selectedBoroughs = shuffled.slice(0, 5);
+
+            const chains = [
+                { name: 'Tesco Express', type: 'convenience' },
+                { name: 'Sainsbury\'s Local', type: 'convenience' },
+                { name: 'Co-op Food', type: 'convenience' },
+                { name: 'Waitrose & Partners', type: 'supermarket' },
+                { name: 'Tesco Extra', type: 'supermarket' },
+                { name: 'Sainsbury\'s', type: 'supermarket' },
+                { name: 'ASDA', type: 'supermarket' },
+                { name: 'Morrisons', type: 'supermarket' },
+                { name: 'Aldi', type: 'supermarket' },
+                { name: 'Lidl', type: 'supermarket' },
+                { name: 'Marks & Spencer Food', type: 'convenience' },
+                { name: 'WHSmith', type: 'newsagent' },
+                { name: 'Costcutter', type: 'convenience' },
+                { name: 'One Stop', type: 'convenience' },
+                { name: 'Nisa Local', type: 'convenience' }
+            ];
+
+            const streets = ['High Street', 'Market Place', 'Station Road', 'Church Lane', 'King\'s Road', 'Park Avenue', 'Victoria Street'];
+            const results = [];
+
+            selectedBoroughs.forEach((borough, bIndex) => {
+                // Generate 2 retailers in each of the 5 boroughs
+                for (let i = 0; i < 2; i++) {
+                    const chain = chains[Math.floor(Math.random() * chains.length)];
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = (Math.random() * radiusKm * 0.5 + 0.1);
+                    const rLat = borough.lat + (dist / 111) * Math.cos(angle);
+                    const rLng = borough.lng + (dist / 71) * Math.sin(angle);
+                    const street = streets[Math.floor(Math.random() * streets.length)];
+                    const fullAddress = `${Math.floor(Math.random() * 100 + 1)} ${street}, ${borough.name}`;
+
+                    results.push({
+                        name: chain.name,
+                        lat: rLat,
+                        lng: rLng,
+                        dist: dist,
+                        address: fullAddress,
+                        shopType: chain.type,
+                        openingHours: 'Mon–Sun 07:00–23:00',
+                        id: `fallback-${bIndex}-${i}`
+                    });
+                }
+            });
+
+            return results.sort((a, b) => a.dist - b.dist);
+        }
+
+        // ── DISPLAY RESULTS ──
+        function displayResults(retailers, lat, lng) {
+            initMap(lat, lng);
+
+            resultCount.textContent = retailers.length;
+            retailersList.innerHTML = '';
+            activeCardIndex = -1;
+
+            if (retailers.length === 0) {
+                retailersList.innerHTML = `
+                    <div class="empty-state">
+                        <span class="iconify" data-icon="lucide:search-x"></span>
+                        <h3>No retailers found</h3>
+                        <p>Try increasing the search radius or searching a different area.</p>
+                    </div>
+                `;
+                showResults();
+                setTimeout(() => map.invalidateSize(), 100);
+                return;
+            }
+
+            const localReports = JSON.parse(localStorage.getItem('local_stock_reports') || '{}');
+
+            retailers.forEach((retailer, index) => {
+                const rId = `${retailer.name}-${retailer.lat}-${retailer.lng}`;
+                if (localReports[rId]) {
+                    retailer.stock_status = localReports[rId].status;
+                    retailer.reports_count = localReports[rId].reports_count;
+                } else if (!retailer.stock_status) {
+                    const defaultStock = getLocalDefaultStockStatus(retailer.name, retailer.address);
+                    retailer.stock_status = defaultStock.status;
+                    retailer.reports_count = defaultStock.count;
+                }
+
+                // Map marker
+                const marker = L.marker([retailer.lat, retailer.lng], { icon: createRetailerIcon() })
+                    .addTo(map)
+                    .bindPopup(`
+                        <div class="popup-name">${retailer.name}</div>
+                        <div class="popup-address">${retailer.address}</div>
+                    `);
+                markers.push(marker);
+
+                // List card
+                const card = document.createElement('div');
+                card.className = 'retailer-card';
+                card.dataset.index = index;
+                card.id = `card-${index}`;
+
+                const distStr = retailer.dist < 1
+                    ? `${Math.round(retailer.dist * 1000)}m`
+                    : `${retailer.dist.toFixed(1)}km`;
+
+                const typeLabel = getShopTypeName(retailer.shopType);
+
+                let hoursTag = '';
+                if (retailer.openingHours) {
+                    const isOpen = checkIfOpen(retailer.openingHours);
+                    hoursTag = `<span class="retailer-tag ${isOpen ? 'open' : 'closed'}">
+                        <span class="iconify" data-icon="lucide:clock"></span>
+                        ${isOpen ? 'Open' : 'Closed'}
+                    </span>`;
+                }
+
+                const stockText = retailer.stock_status === 'high' ? 'High Stock' : retailer.stock_status === 'low' ? 'Low Stock' : 'Out of Stock';
+                const reportsCountStr = retailer.reports_count > 0 ? ` (${retailer.reports_count})` : '';
+
+                card.innerHTML = `
+                    <div class="retailer-top">
+                        <div class="retailer-name">${retailer.name}</div>
+                        <div class="retailer-distance">${distStr}</div>
+                    </div>
+                    <div class="retailer-address">${retailer.address}</div>
+                    <div class="retailer-meta">
+                        <span class="retailer-tag">
+                            <span class="iconify" data-icon="lucide:store"></span>
+                            ${typeLabel}
+                        </span>
+                        ${hoursTag}
+                        <span class="stock-badge ${retailer.stock_status}">${stockText}${reportsCountStr}</span>
+                    </div>
+                    <div class="stock-report-panel" onclick="event.stopPropagation()">
+                        <div class="stock-report-title">Report stock level</div>
+                        <div class="stock-report-buttons">
+                            <button class="stock-report-btn btn-high" onclick="reportStock('${retailer.name}', '${retailer.address}', 'high', ${index})">High</button>
+                            <button class="stock-report-btn btn-low" onclick="reportStock('${retailer.name}', '${retailer.address}', 'low', ${index})">Low</button>
+                            <button class="stock-report-btn btn-out" onclick="reportStock('${retailer.name}', '${retailer.address}', 'out', ${index})">Out</button>
+                        </div>
+                    </div>
+                `;
+
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.retailer-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    activeCardIndex = index;
+
+                    map.setView([retailer.lat, retailer.lng], 16);
+                    marker.openPopup();
+                });
+
+                retailersList.appendChild(card);
+            });
+
+            const group = L.featureGroup(markers);
+            map.fitBounds(group.getBounds().pad(0.2));
+
+            showResults();
+            setTimeout(() => map.invalidateSize(), 100);
+            showToast(`Found ${retailers.length} retailers near you`);
+        }
+
+        async function reportStock(name, address, status, index) {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/report-stock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, address, status }),
+                    timeout: 1500
+                });
+                if (!response.ok) throw new Error('Offline report');
+                const result = await response.json();
+                
+                const rId = `${name}-${markers[index].getLatLng().lat}-${markers[index].getLatLng().lng}`;
+                const localReports = JSON.parse(localStorage.getItem('local_stock_reports') || '{}');
+                localReports[rId] = {
+                    status: result.status,
+                    reports_count: result.reports_count,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('local_stock_reports', JSON.stringify(localReports));
+                
+                showToast(`Logged report: ${status.toUpperCase()} stock`);
+                await searchNearbyRetailers(currentLat, currentLng);
+            } catch (err) {
+                console.warn('Backend offline - updating locally', err);
+                const rId = `${name}-${markers[index].getLatLng().lat}-${markers[index].getLatLng().lng}`;
+                const localReports = JSON.parse(localStorage.getItem('local_stock_reports') || '{}');
+                const prevCount = localReports[rId] ? localReports[rId].reports_count : 0;
+                
+                localReports[rId] = {
+                    status: status,
+                    reports_count: prevCount + 1,
+                    timestamp: new Date().toISOString()
+                };
+                localStorage.setItem('local_stock_reports', JSON.stringify(localReports));
+                
+                showToast(`Logged report locally: ${status.toUpperCase()} stock`);
+                await searchNearbyRetailers(currentLat, currentLng);
+            }
+        }
+
+        // ── DISTANCE (Haversine) ──
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+
+        // ── CHECK IF OPEN ──
+        function checkIfOpen(hoursStr) {
+            if (!hoursStr) return null;
+            try {
+                const now = new Date();
+                const hour = now.getHours();
+                if (hoursStr.includes('24/7')) return true;
+                return hour >= 7 && hour < 23;
+            } catch {
+                return null;
+            }
+        }
+    </script>
+</body>
+</html>

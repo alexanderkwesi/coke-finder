@@ -1,0 +1,27 @@
+{
+  "name": "coke-zero-finder",
+  "version": "1.0.0",
+  "description": "Find Coke Zero retailers near you in the UK",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\" --names \"BACKEND,FRONTEND\" --prefix-colors \"blue,red\"",
+    "backend": "cd backend && python -m uvicorn main:app --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && pip install -r requirements.txt && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "coke-zero",
+    "retailer-finder",
+    "leaflet",
+    "fastapi",
+    "react"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
